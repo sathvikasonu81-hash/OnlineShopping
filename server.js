@@ -1,0 +1,14 @@
+const express = require("express"); const path = require("path"); const app=express(); app.use(express.json()); app.use(express.static(path.join(__dirname,"public")));
+let products=[{id:1,name:"Wireless Mouse",price:599,stock:20},{id:2,name:"Keyboard",price:999,stock:15},{id:3,name:"USB-C Hub",price:1499,stock:10}];
+let customers=[],orders=[],nextCustomer=1,nextOrder=1;
+app.get("/api/products",(req,res)=>{const q=(req.query.q||"").toLowerCase();res.json(products.filter(p=>p.name.toLowerCase().includes(q)))});
+app.post("/api/products",(req,res)=>{const {name,price,stock}=req.body;if(!name||Number(price)<=0||Number(stock)<0)return res.status(400).json({error:"Enter valid product details."});const p={id:Math.max(0,...products.map(x=>x.id))+1,name,price:Number(price),stock:Number(stock)};products.push(p);res.status(201).json(p)});
+app.put("/api/products/:id",(req,res)=>{const p=products.find(x=>x.id===+req.params.id);if(!p)return res.status(404).json({error:"Product not found."});Object.assign(p,{name:req.body.name||p.name,price:req.body.price?Number(req.body.price):p.price,stock:req.body.stock!==undefined?Number(req.body.stock):p.stock});res.json(p)});
+app.delete("/api/products/:id",(req,res)=>{products=products.filter(p=>p.id!==+req.params.id);res.json({message:"Product removed."})});
+app.post("/api/customers",(req,res)=>{const {name,email}=req.body;if(!name||!email)return res.status(400).json({error:"Name and email are required."});const c={id:nextCustomer++,name,email};customers.push(c);res.status(201).json(c)});
+app.get("/api/customers",(req,res)=>res.json(customers));
+app.post("/api/checkout",(req,res)=>{const {customerId,items}=req.body;const c=customers.find(x=>x.id===+customerId);if(!c||!Array.isArray(items)||!items.length)return res.status(400).json({error:"Register a customer and add products first."});let lines=[];for(const i of items){const p=products.find(x=>x.id===+i.productId);if(!p||+i.quantity<1||p.stock<+i.quantity)return res.status(400).json({error:"Product unavailable or insufficient stock."});lines.push({productId:p.id,name:p.name,quantity:+i.quantity,price:p.price})}for(const l of lines)products.find(p=>p.id===l.productId).stock-=l.quantity;const order={id:nextOrder++,customer:c.name,email:c.email,items:lines,total:lines.reduce((s,x)=>s+x.price*x.quantity,0),date:new Date().toISOString()};orders.push(order);res.status(201).json(order)});
+app.get("/api/orders",(req,res)=>res.json(orders));
+app.get("/api/health",(req,res)=>res.json({status:"ok",app:"Online Shopping and Order Management System"}));
+if(require.main===module)app.listen(process.env.PORT||3000,()=>console.log(`Shopping app running at http://localhost:${process.env.PORT||3000}`));
+module.exports=app;
